@@ -1,0 +1,758 @@
+<!doctype book PUBLIC "-//Davenport//DTD DocBook V3.0//EN" [
+]>
+<book>
+  <bookinfo>
+    <date>$LastChangedDate: 2007-09-03 13:40:51 +0200 (Mon, 03 Sep 2007) $</date>
+    <title>edfread Manual</title>
+    <subtitle>Reading Eyelink Datafiles into Matlab</subtitle>
+    <authorgroup>
+      <author>
+        <firstname>Johannes</firstname>
+        <surname>Steger</surname>
+		<affiliation><address><email>jss@coders.de</email></address></affiliation>
+      </author>
+    </authorgroup>
+    <copyright><year>2006</year><year>2007</year><holder>University of Osnabr&uuml;ck, Institute of Cognitive Science, Neurobiopsychology</holder></copyright>
+  </bookinfo>
+  <toc></toc>
+  <chapter id="Introduction">
+    <title>Introduction</title>
+    <para>
+	<application>Edfread</application> is a <application>Matlab</application>
+	extension that reads binary "Eyetracker Data Files" (edf for short)
+	that are created by SR-Research's Eyelink system into Matlab variables. It allows for extracting trial
+	samples, fixations, button events, saccades, calibration and drift correction data
+    as well as custom filtering	of data messages.
+    </para>
+    <para>
+		This manual describes usage and structure of <application>edfread</application> and
+ 		is divided into three parts:
+	<glosslist>
+	<glossentry><glossterm>Tutorial</glossterm>
+		<glossdef>
+		<para>
+		For first-time use in Matlab: How to install and access data.
+		</para>
+		</glossdef>
+	</glossentry>
+	<glossentry><glossterm>Matlab Reference</glossterm>
+		<glossdef>
+		<para>
+		Detailed listing of all available structures and their meaning.
+		</para>
+		</glossdef>
+	</glossentry>
+	<glossentry><glossterm>Developer Documentation</glossterm>
+		<glossdef>
+		<para>
+		Short description of how <application>edfread</application> works
+		and how you can modify it yourself.
+		</para>
+		</glossdef>
+	</glossentry>
+	</glosslist>		
+	<application>Edfread</application> is free software and licensed under the GNU Public License. See the <filename>COPYING</filename>
+	in the distribution for the full text. This manual and all other accompanying documentation is licensed under the GNU Free Documentation License, available from <ulink url="http://www.gnu.org/licenses/fdl.html">http://www.gnu.org/licenses/fdl.html</ulink>.
+    </para>
+  </chapter>
+  <chapter id="Tutorial">
+    <title>Tutorial</title>
+    <sect1>
+		<title>Installation</title>
+		<para>
+		<application>Edfread</application> comes in a single folder for all supported platforms
+		and architectures
+		(<application>Windows 2000, Windows XP 32bit, Mac OS X, Linux i386</application>).
+		It comes in two flavors: the "normal" distribution is optimized
+		for current hardware, whereas the "compat" distribution is slower,
+		but compatible with older (pre-Pentium 4) hardware.
+		</para>
+		<para>
+		To install <application>edfread</application>, carry out the following steps:
+		<orderedlist numeration="lowerroman">
+		<listitem>
+		<para>Checkout the latest Version from SVN:
+		<programlisting role="sh">svn co svn+ssh://yourname@hal.ikw.uos.de/srv/svnroot/nbp/eyetracking/edfread/current \
+													edfread</programlisting>
+													(in one line, without the backslash)
+		This will create a new directory called  <filename>edfread</filename>. 
+		If you did this before, just change to that directory and issue:
+		<programlisting role="sh">svn up</programlisting></para>
+		</listitem>
+		<listitem>
+		<para>Start Matlab</para>
+		</listitem>
+		<listitem>
+		<para>Add the folder from step (i) to <application>Matlab's</application> path via File -> Set Path -> Add Folder -> Save</para>
+		</listitem>
+		<listitem>
+		<para>Type "help edfread" to view <application>edfread's</application> inbuilt help.
+		If this does not work, re-check your path settings
+		and verify that your architecture and platform are supported (see above).</para>
+		</listitem>
+		</orderedlist>
+		</para>
+		<note>
+			<title>Upgrading</title>
+			<para>
+			To upgrade from a earlier version, just overwrite the existing <application>edfread</application>
+			directory with the new version. Also make sure to look at the <filename>CHANGELOG</filename> file,
+			to see if any changes relevant to your data were made.
+			</para>
+		</note>
+	</sect1>
+    <sect1 id="Started">
+		<title>Getting started</title>
+		<para>
+		<application>Edfread</application> takes at least one parameter:
+		the <filename>.edf</filename> file you want to read.
+		Depending on your operating system, the filename might be case-sensitive. In any case, use an
+		absolute path.
+		A call returns up to two structures: The first, <envar>trials</envar>, contains an entry
+		for each trial in the experiment. The second, <envar>meta</envar>, contains information
+		about the experiment and calibration data. If you assign the result of edfread
+		to only one variable, you will only get the trial data.
+		</para>
+		<para>
+		In the following example, <envar>trials</envar> has the same value after both calls:
+		</para>
+		<example>
+		<title>Invocation</title>
+			<programlisting role="Matlab">
+>> trials = edfread('test.edf');
+
+>> [trials, meta] = edfread('test.edf');
+
+>> trials
+
+trials = 
+
+1x280 struct array with fields:
+    left
+    right
+    button
+
+>> meta
+
+meta = 
+    header: [1x249 char]
+    calib: [9x1 struct]
+			</programlisting>
+		  </example>
+    </sect1>
+    <sect1>
+		<title>Accessing single trials</title>
+		<para>
+			Each member of the trials structure represents one trial.
+			It has separate data fields for the left and right eye as
+			well as for button events:
+			<programlisting role="Matlab">
+>> [trials, meta] = edfread('test.edf');
+>> trials(1)
+
+ans = 
+
+      left: [1x1 struct]
+     right: [1x1 struct]
+    button: [1x1 struct]
+			</programlisting>
+			Furthemore, all your randomization data is also put in there. For each Key, a new
+			field will be added that contains your meta data for each trial.
+			For each eye, event data is available in four more sub-structures.
+			Furthermore, drift correction results are stored as
+			<envar>[Screen Offset X, Screen Offset Y, Absolute Angle]</envar>:
+			<programlisting role="Matlab">
+>> trials(1).left
+
+ans = 
+
+    fixation: [1x1 struct]
+     saccade: [1x1 struct]
+       blink: [1x1 struct]
+     samples: [1x1 struct]
+       drift: [17.6000 1.5000 0.5300]
+			</programlisting>
+			Each event structure contains a variable number of <envar>1xN</envar> matrices, where one
+			column is one event:
+			<programlisting role="Matlab">
+trials(1).left.fixation
+
+ans = 
+
+    start: [4 396 796 1412 1580 1924 2352 2512 2984]
+      end: [372 764 1392 1544 1884 2248 2492 2968 3180]
+        x: [505.2702 442.7034 523.5582 513.3559 450.1506 .. ]
+        y: [391.1058 417.8812 561.4643 523.3752 402.1353 .. ]
+    pupil: [900.0395 820.1024 1001.2383 956.2332 899.1932 .. ]
+			</programlisting>
+			So to plot all samples and fixations of the left eye for the 10th trial, you would do:
+			<example>
+			<title>Plot samples and fixations of trial 10</title>
+			<programlisting role="Matlab">
+>> plot(trials(10).left.fixation.x,trials(10).left.fixation.y,'+r--')
+>> hold on
+>> plot(trials(10).left.samples.x,trials(10).left.samples.y,'b-')
+>> legend('Fixations', 'Samples')
+			</programlisting>
+			<screenshot>
+			<graphic fileref="images/simple.png"></graphic>
+			</screenshot>
+			</example>
+		</para>
+	</sect1>
+    <sect1>
+		<title>Accessing global experiment data</title>
+		<para>
+		The calibration data is stored in the meta-data part of your result:
+		<programlisting role="Matlab">
+>> [trials, meta] = edfread('test.edf');
+>> meta.calib
+
+ans = 
+
+9x1 struct array with fields:
+    trial
+    left
+    right
+		</programlisting>
+		<envar>Trial</envar> is a <envar>1xN</envar> integer matrix
+		listing the trials in which calibration took place. Therefore, the calibration
+		at the beginning of the experiment has index <envar>0</envar>.
+		<envar>Left</envar> and <envar>right</envar> list the results of the corresponding
+		calibration run separately for each eye:
+		<programlisting role="Matlab">
+
+>> meta.calib(2).trial
+
+ans =
+
+     0
+
+>> meta.calib(2).left
+
+ans = 
+
+    err_avg: 1.1800
+    err_max: 2.2600
+    off_deg: 3.0800
+      off_x: -7.1000
+      off_y: -105.2000
+      res_x: 0.2000
+      res_y: 0
+       type: 'HV9'
+      coeff: [-1.6402e+03 110.6500 60.9400 -0.0804 ..]
+		</programlisting>
+		Unsuccessful calibration is indicated by error values of <envar>NaN</envar>
+		and <envar>type</envar> <envar>'ERR'</envar>:
+		<programlisting role="Matlab">
+>> meta.calib(1).left
+
+ans =
+
+    err_avg: NaN
+    err_max: NaN
+    off_deg: NaN
+      off_x: NaN
+      off_y: NaN
+      res_x: 0.4000
+      res_y: 0.1000
+       type: 'ERR'
+      coeff: [-1.4184e+03 107.1600 64.6780 -0.1811 -4.6111 -2.0804e+03 -13.9520 421.9400 -0.5476 -7.6107]
+		</programlisting>
+		Besides the calibration data, global experiment meta data, such as SUBJECTINDEX or EXPERIMENTOR, is also saved to the info structure.
+		</para>
+	</sect1>
+    <sect1>
+		<title>Combining trials</title>
+		<para>
+			Often you will want to work on data from several trials (e.g. one condition).
+			The structure of <envar>trials</envar> does not allow for direct
+			access of more than one trial. However, this is easily overcome by using
+			Matlab's <envar>cat</envar> or <envar>[]</envar> operator. Generally speaking, it combines
+			any number of input data sets into a single matrix. So to merge all data
+			from the left eye into <envar>left</envar>, do:
+		<programlisting role="Matlab">
+>> left = [trials.left];
+>> left
+
+left = 
+
+1x280 struct array with fields:
+    fixation
+    saccade
+    blink
+    samples
+    drift
+		</programlisting>
+			By doing that once again on the fixations, you get an
+			array <envar>lfix</envar> that contains all fixations of the left eye:
+		<programlisting role="Matlab">
+
+>> lfix = [left.fixation];
+>> lfix                   
+
+lfix = 
+
+1x280 struct array with fields:
+    start
+    end
+    x
+    y
+    pupil
+		</programlisting>
+			The reason we decided for this kind of structure is basically
+			better readability: by explicitly selecting the data by their
+			name in the structure, we prevent errors occurring when relying
+			on indexing by number instead. Furthermore, the cat operator
+			is extremely fast - it does not store data, but just links to
+			where it got it from until you actually change it.
+			<note>
+			<title>Matlab's cat</title>
+			<para>
+			Sometimes Matlab returns more than one result (i.e. more than one <envar>ans</envar>) for a given command:
+			<programlisting role="Matlab">
+>> left(1:2).blink   
+
+ans = 
+
+    start: 2292
+      end: 2312
+
+
+ans = 
+
+    start: [1752 3044]
+      end: [1796 3056]
+			</programlisting>
+			You can <envar>cat</envar> them
+			together by applying one of:
+			<programlisting role="Matlab">
+>> horzcat(left(1:2).blink)      
+
+ans = 
+
+1x2 struct array with fields:
+    start
+    end
+
+>> [left(1:2).blink]       
+
+ans = 
+
+1x2 struct array with fields:
+    start
+    end
+
+>> vertcat(left(1:2).blink)
+
+ans = 
+
+2x1 struct array with fields:
+    start
+    end
+			</programlisting>
+			So <envar>vertcat(A) == [A]'</envar>
+			and <envar>horzcat(A) == [A]</envar>
+			</para>
+			</note>	
+			<example>
+			<title>Creating a simple PDF map</title>
+			<programlisting role="Matlab">
+>> lfix = [left.fixation]';
+>> lfixall = [[lfix.x]; [lfix.y]];
+>> gauss = meshgrid(gausswin(40)) + meshgrid(gausswin(40))';
+>> pdf = accumarray(double(round(lfixall)), 1) / size(lfixall,1);
+>> surface(conv2(gauss, pdf), 'EdgeColor', 'none')
+			</programlisting>
+			<para>
+			If you don't know some of these Matlab functions,
+			use the <envar>help</envar> command to check
+			the documentation.
+			</para>
+			<screenshot>
+			<graphic fileref="images/pdf.png"></graphic>
+			</screenshot>
+			</example>
+		</para>
+	</sect1>
+    <sect1>
+		<title>Filtering for custom messages</title>
+		<para>
+            Many experiments include their own messages in the <filename>edf</filename>
+            file. Keyboard events (as opposed to button events) and special condition
+            markers are some of them. <application>Edfread</application> has a generic
+            interface to deal with all of them. You can tell <application>edfread</application>
+            to filter for all messages with a given string (keyword) in it:
+			<programlisting role="Matlab">
+>> [trials, meta] = edfread('test.edf', 'VFILL', 'KEY');
+			</programlisting>
+            For each keyword, you will find an additional entry in the trial structure:
+			<programlisting role="Matlab">
+>> trials    
+
+trials = 
+
+1x280 struct array with fields:
+    left
+    right
+    button
+    VFILL
+    KEY
+			</programlisting>
+            Each entry is a structure with two matrices:
+            One, <envar>time</envar>, contains the timestamps (as always in [ms]) from when the messages were picked up,
+            while the other, <envar>msg</envar>, contains the message itself as a string:
+			<programlisting role="Matlab">
+>> trials(1).KEY 
+
+ans = 
+
+    time: 5029
+     msg: 'KEY 4'
+			</programlisting>
+		</para>
+	</sect1>
+  </chapter>
+  <chapter id="Matlab">
+    <title>Matlab Reference</title>
+    <sect1>
+		<title>Trial Data</title>
+		<para>
+		</para>
+		<sect2>
+			<title>Eyes: <envar>left</envar> and <envar>right</envar></title>
+			<para>
+				Times are indexed in ms from start of the experiment.
+				More information about the contained data can be found in the "Eyelink II User Manual" in Section 4.9.
+				<table frame='all'>
+					<title>fixation</title>
+					<tgroup cols='3' align='left' colsep='1' rowsep='1'>
+					<thead><row><entry>Name</entry><entry>Type</entry><entry>Value</entry><entry>Unit</entry></row></thead>
+					<tbody>
+					<row><entry>start</entry><entry>1xN int</entry><entry>Start time of the fixation</entry><entry>ms</entry></row>
+					<row><entry>end</entry><entry>1xN int</entry><entry>End time of the fixation</entry><entry>ms</entry></row>
+					<row><entry>x</entry><entry>1xN single</entry><entry>x position</entry><entry>pixels</entry></row>
+					<row><entry>y</entry><entry>1xN single</entry><entry>y position</entry><entry>pixels</entry></row>
+					<row><entry>pupil</entry><entry>1xN single</entry><entry>pupil size</entry><entry></entry></row>
+					</tbody>
+					</tgroup>
+				</table>
+				<note>
+					<title>Calculation of fixation coordinates</title>
+					<para>
+						For the <envar>x</envar> and <envar>y</envar> coordinates, all
+						sampled positions between fixation start and stop are taken into account
+						and weighted using a triangular function.
+						The same is done for the pupil size.
+					</para>
+				</note>
+				<table frame='all'>
+					<title>saccade</title>
+					<tgroup cols='3' align='left' colsep='1' rowsep='1'>
+					<thead><row><entry>Name</entry><entry>Type</entry><entry>Value</entry><entry>Unit</entry></row></thead>
+					<tbody>
+					<row><entry>start</entry><entry>1xN int</entry><entry>Start time of saccade</entry><entry>ms</entry></row>
+					<row><entry>sx</entry><entry>1xN single</entry><entry>Start position x</entry><entry>pixels</entry></row>
+					<row><entry>sy</entry><entry>1xN single</entry><entry>Start position y</entry><entry>pixels</entry></row>
+					<row><entry>end</entry><entry>1xN int</entry><entry>End time of saccade</entry><entry>ms</entry></row>
+					<row><entry>ex</entry><entry>1xN single</entry><entry>End position x</entry><entry>pixels</entry></row>
+					<row><entry>ey</entry><entry>1xN single</entry><entry>End position y</entry><entry>pixels</entry></row>
+					<row><entry>speed</entry><entry>1xN single</entry><entry>Peek velocity</entry><entry>degrees/s</entry></row>
+					</tbody>
+					</tgroup>
+				</table>
+				<table frame='all'>
+					<title>blink</title>
+					<tgroup cols='3' align='left' colsep='1' rowsep='1'>
+					<thead><row><entry>Name</entry><entry>Type</entry><entry>Value</entry><entry>Unit</entry></row></thead>
+					<tbody>
+					<row><entry>start</entry><entry>1xN int</entry><entry>Start of an eye blink</entry><entry>ms</entry></row>
+					<row><entry>end</entry><entry>1xN int</entry><entry>End of eye blink</entry><entry>ms</entry></row>
+					</tbody>
+					</tgroup>
+				</table>
+				<table frame='all'>
+					<title>samples</title>
+					<tgroup cols='3' align='left' colsep='1' rowsep='1'>
+					<thead><row><entry>Name</entry><entry>Type</entry><entry>Value</entry><entry>Unit</entry></row></thead>
+					<tbody>
+					<row><entry>time</entry><entry>1xN int</entry><entry>Time of sample</entry><entry>ms</entry></row>
+					<row><entry>x</entry><entry>1xN single</entry><entry>Raw sample x position</entry><entry>pixels</entry></row>
+					<row><entry>y</entry><entry>1xN single</entry><entry>Raw sample y position</entry><entry>pixels</entry></row>
+					<row><entry>pupil</entry><entry>1xN single</entry><entry>Pupil size</entry><entry>mm diameter</entry></row>
+					</tbody>
+					</tgroup>
+				</table>
+				Samples are the raw data recorded by the tracker. Depending on your recording frequency, you will get one sample
+				every 2 or 4ms.
+				<table frame='all'>
+					<title>drift</title>
+					<tgroup cols='3' align='left' colsep='1' rowsep='1'>
+					<thead><row><entry>Name</entry><entry>Type</entry><entry>Value</entry><entry>Unit</entry></row></thead>
+					<tbody>
+					<row><entry>1</entry><entry>double</entry><entry>Screen offset X</entry><entry>pixels</entry></row>
+					<row><entry>2</entry><entry>double</entry><entry>Screen offset Y</entry><entry>pixels</entry></row>
+					<row><entry>3</entry><entry>double</entry><entry>Absolute offset angle</entry><entry>degrees</entry></row>
+					</tbody>
+					</tgroup>
+				</table>
+				Dirft Correction values of "NaN" indicate that it was skipped during this trial.
+			</para>
+		</sect2>
+		<sect2>
+			<title>Buttons</title>
+			<para>
+				<table frame='all'>
+					<title>blink</title>
+					<tgroup cols='3' align='left' colsep='1' rowsep='1'>
+					<thead><row><entry>Name</entry><entry>Type</entry><entry>Value</entry><entry>Unit</entry></row></thead>
+					<tbody>
+					<row><entry>time</entry><entry>1xN int</entry><entry>Timestamp of the event</entry><entry>ms</entry></row>
+					<row><entry>code</entry><entry>1xN int</entry><entry>Button code</entry><entry>id</entry></row>
+					</tbody>
+					</tgroup>
+				</table>
+                <note>
+                <title>Button vs. Keypress</title>
+                <para>
+                "Button press" refers to usage of the game controller attached directly
+                to the host PC. This is the only input you can read by default. If you use
+                the PC keyboard attached to the display PC, you need to manually extract
+                the events using the filter functionality described earlier in Chapter 2 - Tutorial.
+                </para>
+                </note>
+			</para>
+		</sect2>
+	</sect1>
+	<sect1>
+		<title>Meta Information</title>
+	    <sect2>
+			<title>Calibration Data: <envar>calib</envar></title>
+			<para>
+			</para>
+			<sect3>
+				<title>Trial</title>
+				<para>
+				A simple <envar>1xN</envar> matrix stating the trials in which
+				calibration procedures were run. A value of <envar>0</envar> denotes
+				the pre-experiment calibration. There may be more than one entry with the
+				same trial id when several calibration runs were necessary to reach
+				acceptable error values.
+				</para>
+			</sect3>
+			<sect3>
+				<title>Left, Right</title>
+				<para>
+				<table frame='all'>
+					<title>calib</title>
+					<tgroup cols='3' align='left' colsep='1' rowsep='1'>
+					<thead><row><entry>Name</entry><entry>Type</entry><entry>Value</entry><entry>Unit</entry></row></thead>
+					<tbody>
+					<row><entry>err_avg</entry><entry>single</entry><entry>Average error over all calibration points</entry><entry>degrees</entry></row>
+					<row><entry>err_max</entry><entry>single</entry><entry>Maximum error</entry><entry>degrees</entry></row>
+					<row><entry>off_deg</entry><entry>single</entry><entry>Offset</entry><entry>degrees</entry></row>
+					<row><entry>off_x</entry><entry>single</entry><entry>X offset</entry><entry>pixels</entry></row>
+					<row><entry>off_y</entry><entry>single</entry><entry>Y offset</entry><entry>pixels</entry></row>
+					<row><entry>res_x</entry><entry>single</entry><entry>X resolution</entry><entry>degrees</entry></row>
+					<row><entry>res_y</entry><entry>single</entry><entry>Y resolution </entry><entry>degrees</entry></row>
+					<row><entry>Type</entry><entry>string</entry><entry>Calibration type: HV9 for nine point</entry><entry></entry></row>
+					<row><entry>coeff</entry><entry>1x10 single</entry><entry>Internal Eyelink: Coefficients for the least square fit:
+					<envar>X=a+bx+cy+dxx+eyy, Y=f+gx+goaly+ixx+jyy</envar></entry><entry>-</entry></row>
+					</tbody>
+					</tgroup>
+				</table>
+				</para>
+			</sect3>
+		</sect2>
+	</sect1>
+  </chapter>
+  <chapter id="Utils">
+    <title>Utility Functions</title>
+    <para>
+    After initially reading the data with <application>edfread</application>, you will do further processing on it.
+    Most shared functions in the lab will accept a data format called <envar>fixmat</envar>.
+    We provide some convenience functions for converting into and working on-top of this format in the
+    <envar>/utils/</envar> folder of the <application>edfread</application> distribution.
+    </para>
+    <sect1>
+     <title>Fixmat Format</title>
+     <para>
+     The fixmat format is a flat representation of fixation data, in contrast to the more hierarchical organisation of the <application>edfread</application> output.
+     It is the prefered form of storage when working on your experiment data.
+     The general aim is to make access to all fixations of an experiment fast and smooth.
+     For this to reach the <envar>fixmat</envar> structure contains information about one fixation per column. 
+     The simplest possible variant looks like this:
+    <programlisting role="Matlab">
+    fixmat = 10000x1 struct array with fields:
+           start: [  0  200 .. 500] 
+             end: [100  300 .. 600]
+               x: [320   40 .. 300]
+               y: [240  220 .. 290]
+             eye: [  1    1 ..   2]
+       condition: [  0    0 ..  56]
+    SUBJECTINDEX: [  1    1 ..  12]
+    </programlisting>
+    Where <envar>condition</envar> and <envar>SUBJECTINDEX</envar> are meta data fields as written by 
+    <application>pytrack</application>, <envar>start</envar>/<envar>end</envar>/<envar>x</envar>/<envar>y</envar> are fixation start, end time, x- and y-position, <envar>eye</envar> is 1 for the left and 2 for the right eye.
+     </para>
+    </sect1> 
+    <sect1>
+     <title>fixations.m</title>
+     <para>
+     <application>fixations.m</application> takes a eyetracking+metadata pair as returned by <application>edfread</application> and returns a structure in fixmat format. 
+     It will automatically add all your meta data fields for the experiment and the single trials. These fields will be converted to the <envar>int32</envar> type.
+     If you have e.g. string or floating point data, you will want to modify <application>fixations.m</application>'s initialization in <envar>init_struct()</envar> and add a custom conversion line in the main loop.
+     </para>
+     <para>
+     The eye is selected by comparing calibration results and checking for availbility of data.
+     Fixations prior to stimulus onset will be discarded.
+     </para>
+    </sect1> 
+    <sect1>
+     <title>split.m</title>
+     <para>
+     <application>split.m</application> helps splitting up a fixmat depending on it's field values.
+     You can supply an arbitray number of field/value combinations to filter for:
+     <programlisting role="Matlab">
+      split(fixmat, 'field1', values1, 'field2', values2, .. )
+     </programlisting>
+     In the simple case, where <envar>length(values)==1</envar> for all values, <application>split.m</application> will return a structure of the same format as fixmat, but only with those elements matching the field criteria.
+    For example, to get all fixations of subject 20 in condition 1 from a fixmat of the whole experiment:
+     <programlisting role="Matlab">
+    split(fixmat, 'condition', [1], 'SUBJECTINDEX', [20])
+    ans = 
+           start: [1x2360 int32]
+             end: [1x2360 int32]
+               x: [1x2360 single]
+               y: [1x2360 single]
+             eye: [1x2360 uint8]
+       condition: [1x2360 int32]
+    SUBJECTINDEX: [1x2360 int32]
+     </programlisting>
+    In contrast, when there is more than one value per field, you will get a seperate structure for each possible value:
+     <programlisting role="Matlab">
+>> result = split(fixmat, 'eye', [1, 2]);
+>> result(1)
+           start: [1x3095 int32]
+             end: [1x3095 int32]
+               x: [1x3095 single]
+               y: [1x3095 single]
+             eye: [1x3095 uint8]
+    EXPERIMENTOR: [1x3095 int32]
+    SUBJECTINDEX: [1x3095 int32]
+       condition: [1x3095 int32]
+            file: [1x3095 int32]
+
+>> result(2)
+           start: [1x1167 int32]
+             end: [1x1167 int32]
+               x: [1x1167 single]
+               y: [1x1167 single]
+             eye: [1x1167 uint8]
+    EXPERIMENTOR: [1x1167 int32]
+    SUBJECTINDEX: [1x1167 int32]
+       condition: [1x1167 int32]
+            file: [1x1167 int32]
+     </programlisting>
+     </para>
+    </sect1> 
+    <sect1>
+     <title>concat.m</title>
+     <para>
+     <application>concat.m</application> concatenates struct arrays together by field.
+      You can use it to combine the results of successive invocations of <application>edfread</application>.
+     </para>
+    </sect1> 
+    <sect1>
+     <title>Sample Session</title>
+<programlisting role="Matlab">
+% sample usage of utility functions
+
+% read data w/ edfread
+[dat, meta] = edfread('/Users/jsteger/lagTest/AB_VP016.EDF')
+
+% lets do some pre-processing:
+% convert the experimentor's name to a numerical id
+experimentors = {'johannes'; 'andreas'; 'dummy'}
+[discard, discard, index] = intersect(meta.EXPERIMENTOR, experimentors);
+% (index is now the index of the string 'meta.EXPERIMENTOR' in the cell
+% array 'experimentors', e.g. 2 for 'andreas')
+% note: fixations.m expects the string representation of an integer here,
+% so we convert the index
+meta.EXPERIMENTORS = num2str(index);
+
+% now we convert to fixmat
+fixmat0 = fixations(dat, meta);
+
+% say we did this for two other subjects too and saved the results to
+% fixmat1 and fixmat2 (in practice, you will of course want to do that
+% within a function) 
+% we can now merge all data into one structure:
+fixmat = concat(fixmat0, fixmat1, fixmat2);
+
+% you should really save that fixmat now
+save('precious.mat', 'fixmat');
+
+% some use cases
+% plot all fixations condition 0 and 1 with different colors
+condfix = split(fixmat, 'condition', [0, 1]);
+
+plot(condfix(1).x, condfix(1).y, '+r');
+hold;
+plot(condfix(2).x, condfix(2).y, '+b');
+</programlisting>
+    </sect1>
+      
+  </chapter>
+  <chapter id="Developer">
+    <title>Developer documentation</title>
+		<para>
+		Note: This part of the manual is only relevant for you if you
+		wish to modify the <emphasis>source code</emphasis> of
+		edfread.
+		</para>
+    <sect1>
+		<title>Introduction</title>
+		<para>
+		<application>Edfread</application> is written in as a <application>Matlab</application> extension
+		module in ANSI C/C++. 
+		</para>
+	</sect1>
+    <sect1>
+		<title>Tool-chain</title>
+		<para>
+		Builds on all platforms are driven by a <envar>Makefile</envar>. The Linux
+		version also builds the documentation (User-guide in html and pdf, overview
+		in pdf, <application>Matlab</application> help in .m) and invokes remote shells for compilation on
+		other platforms.
+		</para>
+		<note>
+		<title>Requirements for compiling</title>
+		<para>
+		For Linux and Mac OS X, a recent gnu g++ compiler is sufficient.
+		Windows requires Installation of the mingw32 environment with the
+		gnu compiler collection.
+		</para>
+		</note>
+		<para>
+		Documentation is created with Doxygen (Developer Reference), Docbook (this manual)
+		and Inkscape (Cheatsheet).
+		</para>
+	</sect1>
+    <sect1>
+		<title>Libraries</title>
+		<para>
+		<application>Edfread</application> uses the <application>GNU Standard C Library</application>
+		for base datatypes, <application>libedfapi</application> by SR-Research for .edf file access
+		and <application>Matlab's</application> C bindings.
+		</para>
+	</sect1>
+    <sect1>
+		<title>Structure</title>
+		<para>
+		Please see the separate "Edfread Reference Manual" (<filename>dev-apiref.pdf</filename>) for a detailed listing of available structures
+		and functions.
+		</para>
+	</sect1>
+  </chapter>
+</book>

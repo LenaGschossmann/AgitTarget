@@ -1,0 +1,19 @@
+*********************************************************************
+001 Intel Mac Version crashes on startup
+*********************************************************************
+
+SYMPTOMS
+
+    When invoking edfread for Intel Macs from Matlab, it raises the error:
+     ??? Invalid MEX-file '/home/student/j/jsteger/eyetracking/edfread/build/macIntel/edfread.mexmaci': dlopen(/home/student/j/jsteger/eyetracking/edfread/build/macIntel/edfread.mexmaci, 1): Library not loaded: edfapi
+     Referenced from: /home/student/j/jsteger/eyetracking/edfread/build/macIntel/edfread.mexmaci
+     Reason: image not found.
+ 
+HOTFIX
+    Run edfread from its installation directory.
+    OR
+    export DYLD_LIBRARY_PATH=/path/to/edfread/directory
+    before running Matlab
+
+FIX
+    We will deploy the edfread Library globally on all Intel Mac.

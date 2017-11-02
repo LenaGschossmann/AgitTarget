@@ -1,0 +1,17 @@
+2005-11-02	Johannes Steger	<jss@coders.de>
+	* Adds 'pupil' field for avg. pupil size per fixation in
+	  trials.eyes.fixation
+	* Fixes gcc 3.3 library mismatch on 32bit Linux platforms
+	
+2006-09-27	Johannes Steger	<jss@coders.de>
+	* Adds Doxygen and Docbook Help (manual.pdf and dev-apiref.pdf)
+
+2007-01-20  Johannes Steger <jss@coders.de>
+	* Per-Experiment Metadata Support, output to the INFO structure
+
+2007-03-21  Johannes Steger <jss@coders.de>
+	* Per-Trial Metadata Support, output to the TRIALS structure
+
+2007-06-17  Johannes Steger <jsteger@uos.de>
+	* Mark skipped Drift Correction with 'NaN' values 
+	* Change to IKW SVN Repository
