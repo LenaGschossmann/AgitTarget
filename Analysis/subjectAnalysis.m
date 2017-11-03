@@ -1,32 +1,45 @@
 
-function [Means] = subjectAnalysis(SbjNumber)
-    
-addpath('/net/home/student/l/lgschossmann/AgitTarget/edfread/build/linux64');
+function [Means] = subjectAnalysis(SbjNumber,benesoutput)
+init_agittarget
+
+%%% addpath('/net/home/student/l/lgschossmann/AgitTarget/edfread/build/linux64');
 
 % SbjNumber = '4';
-
+if isnumeric(SbjNumber)
+    SbjNumber = num2str(SbjNumber);
+end
 curSub = sprintf('AgitT_sb_%s', SbjNumber);
 
+edfpath = fullfile(datapath,'Data',sprintf('%s.EDF',curSub));
+matpath = fullfile(datapath,'Data',sprintf('%s.mat',curSub));
 %% .mat file
 
-load(sprintf('/net/home/student/l/lgschossmann/AgitTarget/Data/%s.mat', curSub));
+% I do this step to ensure that the mat-file has the correct content and to
+% make transparent what is loaded
+experimentmat = load(matpath);
+%%%load(sprintf('/net/home/student/l/lgschossmann/AgitTarget/Data/%s.mat', curSub));
+ntrials_tot = experimentmat.ntrials_tot;
+
+%% Cut off first and last 2 seconds (equals 250 samples) of each trial
+% cutoff_sec = 3;
+% cutoff = cutoff_sec*250;
+cutoff_sec = 3;
+fs = 250;% sampling rate
+cutoff = cutoff_sec * fs;
 
 %% EDF data
-
-[trials, info] = edfread(sprintf('/net/home/student/l/lgschossmann/AgitTarget/Data/%s.EDF', curSub), 'write');
-
+[edfstruct, info] = edfread(edfpath, 'write');
 
 %% Create working trials structure
 
-trials_work = trials;
+trials_work = edfstruct;
 for itrial = 1:ntrials_tot
-    if (isstruct(trials_work(itrial).left)), else, trials_work(itrial).left = trials_work(itrial).right; end
+    if  ~isstruct(trials_work(itrial).left)
+        trials_work(itrial).left = trials_work(itrial).right;
+    end
 end
 
 
-%% Cut off first and last 2 seconds (equals 250 samples) of each trial
-cutoff_sec = 3;
-cutoff = cutoff_sec*250;
 
 for itrial = 1:ntrials_tot
     borders = [(cutoff+1) length(trials_work(itrial).left.samples.x)-cutoff];
@@ -35,15 +48,18 @@ for itrial = 1:ntrials_tot
     trials_work(itrial).left.samples.y = trials_work(itrial).left.samples.y(borders(1):borders(2));
     trials_work(itrial).left.samples.pupil = trials_work(itrial).left.samples.pupil(borders(1):borders(2));
 end
+% end
+
+
 
 %% Extract Microsaccades
 
 [trials_MSextract]= edfExtractMicrosaccades(trials_work);
-    % MS parameters
-    %     --> Amplitude: in px
-    %     --> Phi: Amplitude in vis deg
-    %     --> normgx & normgy: distance in px
-    %     --> vPeak: Peak velocity
+% MS parameters
+%     --> Amplitude: in px
+%     --> Phi: Amplitude in vis deg
+%     --> normgx & normgy: distance in px
+%     --> vPeak: Peak velocity
 
 
 %% Disregard all MS during blinks if blinks were not cut out before
@@ -55,15 +71,15 @@ for itrial = 1:ntrials_tot
     
     samples_x = trials_work(itrial).left.samples.x(:);
     samples_y = trials_work(itrial).left.samples.y(:);
-%     pupil = trials_work(itrial).left.samples.pupil(:);
+    %     pupil = trials_work(itrial).left.samples.pupil(:);
     
     if(sum(samples_x(:) >= 1e07)>0) %check if there are extremely high values in vector which indicate blinks
         diffs_x = NaN(1, length(samples_x)-1);
-
+        
         diffs_x(:) = abs(diff(samples_x));
-
+        
         [diffs_sorted, sortIdx_x] = sort(diffs_x, 'descend'); % Indices of the sample points with highest differences in x-values
-
+        
         %number of blinks
         [M, blinks] = max(abs(diff(diffs_sorted))); %blinks/2 = number of blinks
         blinksIdx = sort(sortIdx_x(1:blinks)); %indices of blinks in samples_x in right chronological order
@@ -104,47 +120,31 @@ for itrial = 1:ntrials_tot
                 end
             end
         end
-       
-     
-     %Exclude MS that lie within blinks
-     blinks_backup = blinks;
-     blinksIdx_backup = blinksIdx;
+        
+        
+        %Exclude MS that lie within blinks
+        blinks_backup = blinks;
+        blinksIdx_backup = blinksIdx;
         while (mod(blinks, 2)>0)
             if (trials_work(itrial).left.samples.x(blinksIdx(1)) >= 1e07 && trials_work(itrial).left.samples.x(blinksIdx(1)+2) < 1e06) %single halfblink in beginning
                 cut = find(trials_MSextract(itrial).left.Microsaccades.Start < blinksIdx(1));
-
-                    trials_MSextract(itrial).left.Microsaccades.Start(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.End(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.Merged(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.vPeak(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.DeltaX(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.DeltaY(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.Amplitude(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.Phi(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.StartTime(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.EndTime(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.Duration(cut) = [];
-
-                    Blink_Indices(1:blinksIdx(1)) = 0; % Write zeros in trials_work at indices that belong to a blink
-                   
+                
+                for fn = fieldnames(trials_MSextract(itrial).left.Microsaccades)'
+                    trials_MSextract(itrial).left.Microsaccades.(fn{1})(cut) = [];
+                end
+                Blink_Indices(1:blinksIdx(1)) = 0; % Write zeros in trials_work at indices that belong to a blink
+                
                 blinkLoc = 1; %means beginning
                 blinksIdx = blinksIdx(2:blinks);
-                blinks = blinks-1;         
+                blinks = blinks-1;
             else   % single halfblink in the end
                 cut = find(trials_MSextract(itrial).left.Microsaccades.End > blinksIdx(blinks));
-                    trials_MSextract(itrial).left.Microsaccades.Start(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.End(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.Merged(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.vPeak(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.DeltaX(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.DeltaY(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.Amplitude(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.Phi(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.StartTime(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.EndTime(cut) = [];
-                    trials_MSextract(itrial).left.Microsaccades.Duration(cut) = [];
-
-                    Blink_Indices(blinksIdx(end):end) = 0;
+                
+                for fn = fieldnames(trials_MSextract(itrial).left.Microsaccades)'
+                    trials_MSextract(itrial).left.Microsaccades.(fn{1})(cut) = [];
+                end
+                
+                Blink_Indices(blinksIdx(end):end) = 0;
                 blinkLoc = 2; %means end
                 blinksIdx = blinksIdx(1:blinks-1);
                 blinks = blinks-1;
@@ -159,30 +159,33 @@ for itrial = 1:ntrials_tot
             for ii = 1:blinks/2
                 cut1 = find(trials_MSextract(itrial).left.Microsaccades.Start > blinksIdx(iiblIdx-1) & trials_MSextract(itrial).left.Microsaccades.End < blinksIdx(iiblIdx));
                 cut2 = find(trials_MSextract(itrial).left.Microsaccades.Start < blinksIdx(iiblIdx-1) & trials_MSextract(itrial).left.Microsaccades.End > blinksIdx(iiblIdx-1));
-                cut3 = find(trials_MSextract(itrial).left.Microsaccades.Start < blinksIdx(iiblIdx) & trials_MSextract(itrial).left.Microsaccades.End > blinksIdx(iiblIdx));
-
+                cut3 = find(trials_MSextract(itrial).left.Microsaccades.Start < blinksIdx(iiblIdx)   & trials_MSextract(itrial).left.Microsaccades.End > blinksIdx(iiblIdx));
+                
                 cut = [cut1 cut2 cut3];
-                trials_MSextract(itrial).left.Microsaccades.Start(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.End(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.Merged(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.vPeak(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.DeltaX(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.DeltaY(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.Amplitude(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.Phi(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.StartTime(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.EndTime(cut) = [];
-                trials_MSextract(itrial).left.Microsaccades.Duration(cut) = [];
-
+                for fn = fieldnames(trials_MSextract(itrial).left.Microsaccades)'
+                    trials_MSextract(itrial).left.Microsaccades.(fn{1})(cut) = [];
+                end
+                %                 trials_MSextract(itrial).left.Microsaccades.Start(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.End(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.Merged(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.vPeak(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.DeltaX(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.DeltaY(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.Amplitude(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.Phi(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.StartTime(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.EndTime(cut) = [];
+                %                 trials_MSextract(itrial).left.Microsaccades.Duration(cut) = [];
+                
                 Blink_Indices(blinksIdx(iiblIdx-1):blinksIdx(iiblIdx)) = 0;
-
+                
                 iiblIdx = iiblIdx + 2;
             end
         end
-
+        
         
         % Replace blink values with interpolatisortIdx_xon if (blinks >1)
-         if(mod(blinks, 2)>0) %when there are halfblinks
+        if(mod(blinks, 2)>0) %when there are halfblinks
             if (blinkLoc == 1) % second condition necessary if theres just one halfblink
                 iiblIdx = 1;
                 tmpIdx = 1:blinksIdx(iiblIdx);
@@ -196,26 +199,26 @@ for itrial = 1:ntrials_tot
                 trials_MSextract(itrial).left.samples.y(tmpIdx) = ones(1, length(tmpIdx)) * samples_y(blinksIdx(iiblIdx)-1);
                 blinksIdx = blinksIdx(1:end-1);
             end
-         end
-         iiblIdx = 2; %Index of end of each blink
-         while (iiblIdx <= blinks)
-             tmpIdx = blinksIdx(iiblIdx-1):blinksIdx(iiblIdx);
-             if (blinksIdx(iiblIdx-1) == 1) % case that saccade starts at very beginning -> there is no preceding value
-                 trials_MSextract(itrial).left.samples.x(tmpIdx) = ones(1, length(tmpIdx)) * samples_x(blinksIdx(iiblIdx)+1);
-                 trials_MSextract(itrial).left.samples.y(tmpIdx) = ones(1, length(tmpIdx)) * samples_y(blinksIdx(iiblIdx)+1);
-                 iiblIdx = iiblIdx +2;
-             elseif (blinksIdx(iiblIdx) == length(blinksIdx)) % case that saccade ends at very end -> there is no following value
-                 trials_MSextract(itrial).left.samples.x(tmpIdx) = ones(1, length(tmpIdx)) * samples_x(blinksIdx(iiblIdx -1)-1);
-                 trials_MSextract(itrial).left.samples.y(tmpIdx) = ones(1, length(tmpIdx)) * samples_y(blinksIdx(iiblIdx-1)-1);
-                 iiblIdx = iiblIdx +2;
-             else
-                 trials_MSextract(itrial).left.samples.x(tmpIdx) = linspace(samples_x(blinksIdx(iiblIdx-1)-1), samples_x(blinksIdx(iiblIdx)+1), length(tmpIdx));
-                 trials_MSextract(itrial).left.samples.y(tmpIdx) = linspace(samples_y(blinksIdx(iiblIdx-1)-1), samples_y(blinksIdx(iiblIdx)+1), length(tmpIdx));
-                 iiblIdx = iiblIdx +2;
-             end
-         end
+        end
+        iiblIdx = 2; %Index of end of each blink
+        while (iiblIdx <= blinks)
+            tmpIdx = blinksIdx(iiblIdx-1):blinksIdx(iiblIdx);
+            if (blinksIdx(iiblIdx-1) == 1) % case that saccade starts at very beginning -> there is no preceding value
+                trials_MSextract(itrial).left.samples.x(tmpIdx) = ones(1, length(tmpIdx)) * samples_x(blinksIdx(iiblIdx)+1);
+                trials_MSextract(itrial).left.samples.y(tmpIdx) = ones(1, length(tmpIdx)) * samples_y(blinksIdx(iiblIdx)+1);
+                iiblIdx = iiblIdx +2;
+            elseif (blinksIdx(iiblIdx) == length(blinksIdx)) % case that saccade ends at very end -> there is no following value
+                trials_MSextract(itrial).left.samples.x(tmpIdx) = ones(1, length(tmpIdx)) * samples_x(blinksIdx(iiblIdx -1)-1);
+                trials_MSextract(itrial).left.samples.y(tmpIdx) = ones(1, length(tmpIdx)) * samples_y(blinksIdx(iiblIdx-1)-1);
+                iiblIdx = iiblIdx +2;
+            else
+                trials_MSextract(itrial).left.samples.x(tmpIdx) = linspace(samples_x(blinksIdx(iiblIdx-1)-1), samples_x(blinksIdx(iiblIdx)+1), length(tmpIdx));
+                trials_MSextract(itrial).left.samples.y(tmpIdx) = linspace(samples_y(blinksIdx(iiblIdx-1)-1), samples_y(blinksIdx(iiblIdx)+1), length(tmpIdx));
+                iiblIdx = iiblIdx +2;
+            end
+        end
     end
-
+    
     trials_MSextract(itrial).left.samples.Blink_Indices = Blink_Indices;
     
 end
@@ -224,7 +227,7 @@ clear('samples_x', 'samples_y', 'sortIdx_x', 'diffs_x', 'diffs_sorted', 'blIdx',
 
 
 %% Calculate measures regarding MS
-    
+
 %Number of MS & Amplitude
 nMS_pTrial = NaN(1, ntrials_tot);
 meanAmp_pTrial = NaN(1, ntrials_tot);
@@ -244,17 +247,17 @@ nS_pTrial = NaN(1, ntrials_tot);
 
 for itrial = 1:ntrials_tot
     nS_pTrial(itrial) = size(trials_work(itrial).left.saccade.start, 2);
-%     meanAmp_pTrial(itrial) = median(trials_work(itrial).left.saccade.Amplitude);
+    %     meanAmp_pTrial(itrial) = median(trials_work(itrial).left.saccade.Amplitude);
     
 end
 
 condition_names = {'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'};
 
-Means = table(condition_names', zeros(4,1), zeros(4,1), zeros(4,1), zeros(4,1),  zeros(4,1), 'VariableNames', {'Condition', 'MeanMS', 'MeanAmp', 'MeanDeltaX', 'MeanDeltaY', 'MeanSaccades'}); 
+Means = table(condition_names', zeros(4,1), zeros(4,1), zeros(4,1), zeros(4,1),  zeros(4,1), 'VariableNames', {'Condition', 'MeanMS', 'MeanAmp', 'MeanDeltaX', 'MeanDeltaY', 'MeanSaccades'});
 
 for icond = 1:4
-    cond_tmp = find(Exp_block_ID == icond);
-%     Means.Condition(icond) = condition_names(icond);
+    cond_tmp = find(experimentmat.Exp_block_ID== icond);
+    %     Means.Condition(icond) = condition_names(icond);
     Means.MeanMS(icond) = mean(nMS_pTrial(cond_tmp));
     Means.MeanAmp(icond) = mean(meanAmp_pTrial(cond_tmp));
     Means.MeanDeltaX(icond) = mean(meanXY_pTrial(1, cond_tmp));
@@ -263,6 +266,48 @@ for icond = 1:4
 end
 
 
+if nargin>1 && benesoutput
+    % benes kram
+    data = table();
+    for tr = 1:length(trials_MSextract)
+        ms = trials_MSextract(tr).left.Microsaccades;
+        t = struct2table(structfun(@(x)double(x)',ms,'UniformOutput',0));
+        t.trial = repmat(tr,size(t,1),1);
+        t.condition = repmat(condition_names(experimentmat.Exp_block_ID(tr)),size(t,1),1);
+        t.subject = repmat(SbjNumber,size(t,1),1);
+        data = [data;t];
+    end
+    Means  = data; % just to keep your function working...
+    if 1 == 0
+        %% Temporary plotting tools
+        data(data.Amplitude>10^5,:) = [];
+        %% Pure sanity checks, I don't expect any differences here
+        % Draw Main Sequence
+        figure
+        g = gramm('x',log10(data.Amplitude),'y',log10(data.vPeak),'color',data.condition);
+        g.geom_point();
+        g.facet_grid([],data.condition)
+        g.draw()
+        %%
+        figure
+        g = gramm('x',log10(data.Amplitude),'y',log10(data.vPeak),'color',data.condition);
+        g.stat_smooth();
+        g.draw()
+        
+        %% Now let's have a look at more interesting things
+        % amplitude densities
+        figure
+        g = gramm('x',log10(data.Amplitude),'color',data.condition);
+        g.stat_density()
+        g.draw()
+        
+        %% number of MS per trial
+        stat = grpstats(data,{'trial','condition'});
+        figure
+        g = gramm('x',stat.condition,'y',stat.GroupCount,'color',stat.condition);
+        g.stat_violin()
+        g.draw()
+    end
 end
 
 

@@ -1,8 +1,9 @@
 
-addpath('/net/home/student/l/lgschossmann/AgitTarget/edfread/build/linux64');
+init_agittarget
 
 subjects = [2 3 4 6];
 
+%%
 mainTable = zeros(4, 5, length(subjects));
 % Columns: 'MeanMS', 'MeanAmp', 'MeanDeltaX', 'MeanDeltaY', 'MeanSaccades'
 % Rows: 'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'
