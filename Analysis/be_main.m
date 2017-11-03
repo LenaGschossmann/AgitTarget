@@ -49,7 +49,10 @@ xlim([0 70]);
 stat = grpstats(data,{'subject','trial','condition'});
 figure
 g = gramm('x',stat.condition,'y',stat.GroupCount,'color',stat.condition);
-g.stat_violin()
-g.facet_grid([],stat.subject)
-g.stat_summary('geom','black_errorbar')
-g.draw()
+
+g.stat_violin();
+g.geom_jitter();
+g.facet_grid([],stat.subject);
+g.stat_summary('geom','black_errorbar');
+g.draw();
+set(findobj(g.facet_axes_handles,'Marker','o'),'MarkerFaceColor',[.2 .2 .2])
