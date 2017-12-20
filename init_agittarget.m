@@ -3,7 +3,7 @@ cd(gitpath)
 
 addpath('./lib/edfread/build/linux64');
 addpath('./lib/edfread/build/win32');
-addpath('./Analysis/')
+addpath('./analysis/')
 addpath('./lib/gramm/')
 
 datapath = '/net/store/nbp/projects/agittarget/';
