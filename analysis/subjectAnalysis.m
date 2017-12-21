@@ -1,8 +1,8 @@
 
-function [Means] = subjectAnalysis(SbjNumber,MSdataMain)
+function [data] = subjectAnalysis(SbjNumber,MSdataMain)
 init_agittarget
 
-SbjNumber = '7';
+% SbjNumber = '7';
 if isnumeric(SbjNumber)
     SbjNumber = num2str(SbjNumber);
 end
@@ -100,44 +100,29 @@ for itrial = 1:ntrials_tot
         end
                 
         %include area around blinks
+        
+        %threshold for cut-out area around blinks: throw out each next
+        %value that is still bigger than the 95% quantile of all x values
+        qntl_x = quantile(samples_x, 0.95); 
+        
         for blIdx = 1:blinks
             %start of blink
             if (ismember(blIdx, blinksStart))
-                goOn = 1;
-                while(goOn == 1)
+                while(samples_x(blinksIdx(blIdx)) > qntl_x)
                     if (blinksIdx(blIdx) == 1)%Safety-bar
-                        goOn = 0;
+                       break;
                     else
-                        % go stepwise back in time and check slope
-                        if ((samples_x(blinksIdx(blIdx)) - samples_x(blinksIdx(blIdx)-1)) >= 2) % 2 is randomly chosen --> what to choose?
-                            blinksIdx(blIdx) = blinksIdx(blIdx)-1;
-                        else
-                            % in case there is a "overshoot"
-                            while (samples_x(blinksIdx(blIdx)-1) < 0)
-                                blinksIdx(blIdx) = blinksIdx(blIdx) - 1;
-                            end
-                            goOn = 0;
-                        end
+                        blinksIdx(blIdx) = blinksIdx(blIdx)-1;  % go stepwise back in time and check slope
                     end
                 end
             %end of blink    
             else 
-                goOn = 1;
-                while(goOn == 1)
+                while((samples_x(blinksIdx(blIdx))) > qntl_x)
                     if (blinksIdx(blIdx) == length(blinksIdx))%Safety-bar
-                        goOn = 0;
+                        break;
                     else
-                        % go stepwise forth in time and check slope
-                        if ((samples_x(blinksIdx(blIdx))) - samples_x(blinksIdx(blIdx)+1) >= 2)
-                            blinksIdx(blIdx) = blinksIdx(blIdx)+1;
-                        else
-                            % in case there is a "overshoot"
-                            while (samples_x(blinksIdx(blIdx)+ 1) < 0)
-                                blinksIdx(blIdx) = blinksIdx(blIdx) + 1;
-                            end
-                            goOn = 0;
-                        end
-                    end
+                        blinksIdx(blIdx) = blinksIdx(blIdx)+1; % go stepwise forth in time and check slope
+                    end 
                 end
             end
         end
@@ -147,9 +132,9 @@ for itrial = 1:ntrials_tot
            blinksIdx(1) = 1;
        end
        
-       trials_MSextract(itrial).left.samples.Blink_Indices = zeros(1, length(samples_x));
+       trials_MSextract(itrial).left.samples.Blink_Indices = ones(1, length(samples_x));
        
-        %Exclude MS that lie within blinks or start or end in blinks
+        %% Exclude MS that lie within blinks,start or end in blinks
         % -> exclude MS that lie between the blinkStart&End
         if(halfblink == 1)
             blinksIdx = [1 blinksIdx];
@@ -167,15 +152,21 @@ for itrial = 1:ntrials_tot
             cut = cut + (trials_MSextract(itrial).left.Microsaccades.Start > blinksIdx(blinksStart(ii)) & trials_MSextract(itrial).left.Microsaccades.Start < blinksIdx(blinksEnd(ii)));
             cut = cut + (trials_MSextract(itrial).left.Microsaccades.End > blinksIdx(blinksStart(ii)) & trials_MSextract(itrial).left.Microsaccades.End < blinksIdx(blinksEnd(ii)));  
             % indices of samples that belong to blink = 1
-            trials_MSextract(itrial).left.samples.Blink_Indices(blinksIdx(blinksStart(ii)):blinksIdx(blinksEnd(ii))) = 1;
+            trials_MSextract(itrial).left.samples.Blink_Indices(blinksIdx(blinksStart(ii)):blinksIdx(blinksEnd(ii))) = 0;
         end
+        
+        trials_MSextract(itrial).left.samples.Blink_Indices(samples_x < 0) = 0;
+        trials_MSextract(itrial).left.samples.Blink_Indices(samples_x > 10^5) = 0;
+        
+        cut(trials_MSextract(itrial).left.Microsaccades.Amplitude > 10^5) = 0;
+        cut(trials_MSextract(itrial).left.Microsaccades.Amplitude < -10^3) = 0;
         
         Fn = fieldnames(trials_MSextract(itrial).left.Microsaccades);
         cut = find(cut == 1 | cut == 2);
         %safe backup of MS data
         MS_backup = trials_MSextract(itrial).left.Microsaccades;
         for ifn = 1:length(Fn)
-            trials_MSextract(itrial).left.Microsaccades.(Fn{ifn})(cut) = [];
+            trials_MSextract(itrial).left.Microsaccades.(Fn{ifn})(cut) = NaN;
         end
         
             
@@ -313,52 +304,24 @@ clear('samples_x', 'samples_y', 'sortIdx_x', 'diffs_x', 'diffs_sorted', 'blIdx',
 
 %% Table with all MS per subject listed
 
+condition_names = {'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'};
+
 if nargin>1 && MSdataMain
     % benes kram
     data = table();
-    for tr = 1:length(trials_MSextract)
-        ms = trials_MSextract(tr).left.Microsaccades; % all 
+    for itrial = 1:length(trials_MSextract)
+        ms = trials_MSextract(itrial).left.Microsaccades; % all 
         t = struct2table(structfun(@(x)double(x)',ms,'UniformOutput',0)); %transform in double precision values
-        t.trial = repmat(tr,size(t,1),1);
-        t.condition = repmat(condition_names(experimentmat.Exp_block_ID(tr)),size(t,1),1);
+        t.trial = repmat(itrial,size(t,1),1);
+        t.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(t,1),1);
         t.subject = repmat(SbjNumber,size(t,1),1);
         data = [data;t];
     end
 %     Means  = data; % just to keep your function working...
-    if 1 == 0
-        %% Temporary plotting tools
-        data(data.Amplitude>10^5,:) = [];
-        %% Pure sanity checks, I don't expect any differences here
-        % Draw Main Sequence
-        figure
-        g = gramm('x',log10(data.Amplitude),'y',log10(data.vPeak),'color',data.condition);
-        g.geom_point();
-        g.facet_grid([],data.condition)
-        g.draw()
-        %%
-        figure
-        g = gramm('x',log10(data.Amplitude),'y',log10(data.vPeak),'color',data.condition);
-        g.stat_smooth();
-        g.draw()
-        
-        %% Now let's have a look at more interesting things
-        % amplitude densities
-        figure
-        g = gramm('x',log10(data.Amplitude),'color',data.condition);
-        g.stat_density()
-        g.draw()
-        
-        %% number of MS per trial
-        stat = grpstats(data,{'trial','condition'});
-        figure
-        g = gramm('x',stat.condition,'y',stat.GroupCount,'color',stat.condition);
-        g.stat_violin()
-        g.draw()
-    end
 end
 
-%% Mean MS measures
 
+%% Mean MS measures
 %Number of MS & Amplitude
 nMS_pTrial = NaN(1, ntrials_tot);
 meanAmp_pTrial = NaN(1, ntrials_tot);
@@ -380,8 +343,6 @@ for itrial = 1:ntrials_tot
     %     meanAmp_pTrial(itrial) = median(trials_work(itrial).left.saccade.Amplitude);
 end
 
-condition_names = {'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'};
-
 Means = table(condition_names', zeros(4,1), zeros(4,1), zeros(4,1), zeros(4,1),  zeros(4,1), 'VariableNames', {'Condition', 'MeanMS', 'MeanAmp', 'MeanDeltaX', 'MeanDeltaY', 'MeanSaccades'});
 
 for icond = 1:4
@@ -394,4 +355,9 @@ for icond = 1:4
     Means.MeanSaccades(icond) = mean(nS_pTrial(cond_tmp));
 end
 
+if nargin>1 && MSdataMain == 0
+    data = Means;
+end
+
+end
 

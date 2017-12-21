@@ -4,13 +4,13 @@ addpath('/net/home/student/l/lgschossmann/git/AgitTarget')
 init_agittarget
 
 try
-    newestfile = './cache/data_2017_11_04.mat'; 
+%     newestfile = './cache/data_2017_11_04.mat'; 
     if exist(newestfile,'file')
         tmp = load(newestfile);
         data = tmp.data;
         subjects = str2num(unique(data.subject));
     else
-        subjects = [2 3 4 6];
+        subjects = [7];
         data = [];  % Write in here all saccades of all subjects
         for isub = 1:length(subjects)
             tic
@@ -22,23 +22,23 @@ try
     end
     
     
-    mainTable = zeros(4, 5, length(subjects));
-    % Columns: 'MeanMS', 'MeanAmp', 'MeanDeltaX', 'MeanDeltaY', 'MeanSaccades'
-    % Rows: 'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'
-
-    for isub = 1:length(subjects)
-        tmpTable = table2cell(subjectAnalysis(int2str(subjects(isub))));
-        mainTable(:,:,isub) = cell2mat(tmpTable(:,2:6));
-    end
-
-    condition_names = {'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'};
-    meanTable = table(condition_names', zeros(4,1), zeros(4,1), zeros(4,1), 'VariableNames', {'Condition', 'MeanMS', 'MeanAmp', 'MeanSaccades'}); 
-
-    for icond = 1:4
-        meanTable.MeanMS(icond) = mean(mainTable(icond, 1, :));
-        meanTable.MeanAmp(icond) = mean(mainTable(icond, 2, :));
-        meanTable.MeanSaccades(icond) = mean(mainTable(icond, 5, :));
-    end
+%     mainTable = zeros(4, 5, length(subjects));
+%     % Columns: 'MeanMS', 'MeanAmp', 'MeanDeltaX', 'MeanDeltaY', 'MeanSaccades'
+%     % Rows: 'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'
+% 
+%     for isub = 1:length(subjects)
+%         tmpTable = table2cell(subjectAnalysis(int2str(subjects(isub))));
+%         mainTable(:,:,isub) = cell2mat(tmpTable(:,2:6));
+%     end
+% 
+%     condition_names = {'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'};
+%     meanTable = table(condition_names', zeros(4,1), zeros(4,1), zeros(4,1), 'VariableNames', {'Condition', 'MeanMS', 'MeanAmp', 'MeanSaccades'}); 
+% 
+%     for icond = 1:4
+%         meanTable.MeanMS(icond) = mean(mainTable(icond, 1, :));
+%         meanTable.MeanAmp(icond) = mean(mainTable(icond, 2, :));
+%         meanTable.MeanSaccades(icond) = mean(mainTable(icond, 5, :));
+%     end
 
 catch ME
     if(strcmp(ME.identifier, 'MATLAB:mex:ErrInvalidMEXFile'))
