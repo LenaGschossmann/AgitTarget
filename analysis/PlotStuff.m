@@ -63,6 +63,9 @@ end
 %% Plot with gramm
 
         %% Temporary plotting tools
+        
+        data = SAC_data;
+        
         data(data.Amplitude>10^5,:) = [];
         %% Pure sanity checks, I don't expect any differences here
         % Draw Main Sequence
@@ -91,10 +94,20 @@ end
         g.draw()
         
         %% number of MS per trial
-        stat = grpstats(data,{'trial','condition'});
+
+%         data.condition(strcmp(data.condition, 'CrossedBulleye')) = {'1'};
+%         data.condition(strcmp(data.condition, 'GaussCirclesMasked_Dot')) = {'2'};
+%         data.condition(strcmp(data.condition, 'StatCircles')) = {'3'};
+%         data.condition(strcmp(data.condition, 'Bulleye')) = {'4'};
+%         data.condition = cell2mat(data.condition);
+%         data.condition = str2num(data.condition);
+%         data.subject = str2num(data.subject);
+        
+%         stat = grpstats(data,'condition');
         figure
-        g = gramm('x',stat.condition,'y',stat.GroupCount,'color',stat.condition);
-        g.stat_violin()
+        g = gramm('x',data.condition,'color',data.condition);
+        g.set_names('color', 'Condition');
+        g.stat_bin('nbins', 4, 'width', 3);
         g.draw()
         
         
