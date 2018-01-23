@@ -34,9 +34,17 @@ figure, plot(1:length(trials_MSextract(itrial).left.samples.x(:)), trials_MSextr
 % hold all, plot(1:length(trials(itrial).left.samples.x(:)), trials(itrial).left.samples.y(:), 'r')
 
 %samples_no blinks
-template = logical(trials_MSextract(itrial).left.samples.Blink_Indices(:));
+template = logical(trials_MSextract(itrial).left.samples.Good_Values(:));
+
 figure, plot(1:length(trials_MSextract(itrial).left.samples.x(template)), trials_MSextract(itrial).left.samples.x(template))
 
+%plot eyemovement
+figure
+g = gramm('x', trials_MSextract(itrial).left.samples.x(template), 'y', trials_MSextract(itrial).left.samples.y(template))
+g.geom_point();
+g.geom_vline('xintercept', 1920);
+g.geom_hline('yintercept', 1080);
+g.draw()
 
 for itrial = 1:10
     figure, plot(trials_MSextract(itrial).left.samples.x, trials_MSextract(itrial).left.samples.y)
@@ -72,8 +80,14 @@ end
         %% Now let's have a look at more interesting things
         % amplitude densities
         figure
-        g = gramm('x',log10(data.Amplitude),'color',data.condition);
+        g = gramm('x',data.Amplitude,'color',data.condition);
         g.stat_density()
+        g.draw()
+        
+        %ellipse
+        figure
+        g=gramm('x', data.DeltaX, 'y', data.DeltaY, 'color', data.condition);
+        g.stat_ellipse();
         g.draw()
         
         %% number of MS per trial
@@ -84,10 +98,19 @@ end
         g.draw()
         
         
-%         
-%         figure
-%         g = gramm('x', data.DeltaX(ismember(data.subject, '7')), 'y', data.DeltaY(ismember(data.subject, '7')));
-%         g.stat_smooth()
-%         g.draw()
+        %%plot eyemovement across all trials
+        figure
+        g = gramm('x', data.DeltaX, 'y', data.DeltaY, 'color', data.condition)
+        g.geom_point();
+        g.geom_vline('xintercept', 1920);
+        g.geom_hline('yintercept', 1080);
+        g.facet_grid([], data.condition);
+        g.draw()
+        
+        %boxplot
+        figure
+        g= gramm('x', data.condition, 'y', data.Amplitude, 'color', data.condition);
+        g.stat_summary();
+        g.draw();
 
 
