@@ -1,8 +1,20 @@
 
+%plot microsaccade number against trials
+figure
+plot([1:80], tTrial.numMS)
+condCol = {'r', 'g', 'b', 'y'}; 
+tblock = [1:10;11:20;21:30;31:40;41:50;51:60;61:70;71:80];
+for ii = 1:length(experimentmat.condition_list)
+    hold all, plot(tblock(ii,:), tTrial.numMS(tTrial.trial(tblock(ii,:))),condCol{experimentmat.condition_list(ii)});
+end
 
 
-
-
+%plot x-velo against y-velo
+figure
+plot(trials_MSextract(itrial).left.samples.x, trials_MSextract(itrial).left.samples.y)
+for ii = 1:length(trials_MSextract(itrial).left.Microsaccades.Start)
+    hold all, plot(trials_MSextract(itrial).left.samples.x(trials_MSextract(itrial).left.Microsaccades.Start(ii):trials_MSextract(itrial).left.Microsaccades.End(ii)), trials_MSextract(itrial).left.samples.y(trials_MSextract(itrial).left.Microsaccades.Start(ii): trials_MSextract(itrial).left.Microsaccades.End(ii)), 'r')
+end
 
 
 %% Plot-Stuff
@@ -26,6 +38,8 @@ for itrial = 1:10
     hold all, plot(trials_work(itrial).left.samples.x(trials_MSextract(itrial).left.Microsaccades.Start), trials_work(itrial).left.samples.y(trials_MSextract(itrial).left.Microsaccades.Start), 'r')
     hold all, plot(min(trials_work(itrial).left.samples.x) + range(trials_work(itrial).left.samples.x)/2, min(trials_work(itrial).left.samples.y) + range(trials_work(itrial).left.samples.y)/2, 'k*')
 end
+
+
 
 
 %% MSextract
@@ -92,6 +106,12 @@ end
         g=gramm('x', data.DeltaX, 'y', data.DeltaY, 'color', data.condition);
         g.stat_ellipse();
         g.draw()
+        
+        
+        
+        
+        
+        
         
         %% number of MS per trial
 

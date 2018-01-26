@@ -2,7 +2,7 @@
 function [MS_data SAC_data] = subjectAnalysis(SbjNumber,MSdata, SACdata)
 init_agittarget
 
-% SbjNumber = '2';
+% SbjNumber = '3';
 if isnumeric(SbjNumber)
     SbjNumber = num2str(SbjNumber);
 end
@@ -21,10 +21,10 @@ ntrials_tot = experimentmat.ntrials_tot;
 
 %% Create working trials structure
 
-trials_work = edfstruct;
+trials_raw = edfstruct;
 for itrial = 1:ntrials_tot
-    if  ~isstruct(trials_work(itrial).left)
-        trials_work(itrial).left = trials_work(itrial).right;
+    if  ~isstruct(trials_raw(itrial).left)
+        trials_raw(itrial).left = trials_raw(itrial).right;
     end
 end
 
@@ -34,17 +34,17 @@ fs = 250;% sampling rate
 cutoff = cutoff_sec * fs; 
 
 for itrial = 1:ntrials_tot
-    borders = [(cutoff+1) length(trials_work(itrial).left.samples.x)-cutoff];
-    trials_work(itrial).left.samples.time = trials_work(itrial).left.samples.time(borders(1):borders(2));
-    trials_work(itrial).left.samples.x = trials_work(itrial).left.samples.x(borders(1):borders(2));
-    trials_work(itrial).left.samples.y = trials_work(itrial).left.samples.y(borders(1):borders(2));
-    trials_work(itrial).left.samples.pupil = trials_work(itrial).left.samples.pupil(borders(1):borders(2));
+    borders = [(cutoff+1) length(trials_raw(itrial).left.samples.x)-cutoff];
+    trials_raw(itrial).left.samples.time = trials_raw(itrial).left.samples.time(borders(1):borders(2));
+    trials_raw(itrial).left.samples.x = trials_raw(itrial).left.samples.x(borders(1):borders(2));
+    trials_raw(itrial).left.samples.y = trials_raw(itrial).left.samples.y(borders(1):borders(2));
+    trials_raw(itrial).left.samples.pupil = trials_raw(itrial).left.samples.pupil(borders(1):borders(2));
 end
 
 
 %% Extract Microsaccades
 
-[trials_MSextract]= edfExtractMicrosaccades(trials_work);
+[trials_MSextract]= edfExtractMicrosaccades(trials_raw);
 % MS parameters
 %     --> Amplitude: in px
 %     --> Phi: Amplitude in vis deg
@@ -57,11 +57,11 @@ end
 for itrial = 1:ntrials_tot
     
     %Good_Values contains 0 at every element that has to be disregarded as it lies in a blink
-%     Good_Values = ones(1, length(trials_work(itrial).left.samples.x)); 
+%     Good_Values = ones(1, length(trials_raw(itrial).left.samples.x)); 
     
-    samples_x = trials_work(itrial).left.samples.x(:);
-    samples_y = trials_work(itrial).left.samples.y(:);
-    %     pupil = trials_work(itrial).left.samples.pupil(:);
+    samples_x = trials_raw(itrial).left.samples.x(:);
+    samples_y = trials_raw(itrial).left.samples.y(:);
+    %     pupil = trials_raw(itrial).left.samples.pupil(:);
     
     % here are all values that need to be eliminated in MS and SAC coded
     % with 1
@@ -115,7 +115,7 @@ for itrial = 1:ntrials_tot
         halfblink = 0; % 0 = no halfblink | 1 = halfblink in beginning | 2 = halfblink in end
         if (mod(blinks,2)>0)
             %halfblink in beginning
-            if(trials_work(itrial).left.samples.x(blinksIdx(1)) >= 1e07 && trials_work(itrial).left.samples.x(blinksIdx(1)+2) < 1e06) 
+            if(trials_raw(itrial).left.samples.x(blinksIdx(1)) >= 1e07 && trials_raw(itrial).left.samples.x(blinksIdx(1)+2) < 1e06) 
                 halfblink = 1;
                 blinksIdx = [1 blinksIdx];
             %halfblink in end
@@ -213,8 +213,12 @@ for itrial = 1:ntrials_tot
             trials_MSextract(itrial).left.saccade.(Fn{ifn})(cutSAC) = [];
             [trials_MSextract(itrial).left.saccade.(Fn_new{ifn})] = trials_MSextract(itrial).left.saccade.(Fn{ifn});
             trials_MSextract(itrial).left.saccade = rmfield(trials_MSextract(itrial).left.saccade, (Fn{ifn}));
+        end        
+        
+        %Check if any MS amplitude exceeds 2degree
+        if ((1/experimentmat.px_per_deg).* trials_MSextract(itrial).left.Microsaccades.Amplitude > 2)
+            warning(sprintf('There are Microsaccades in subject %d, trial %d that exceed 2 degrees in their amplitude', SbjNumber, itrial))
         end
-    
 end
 
 clear('samples_x', 'samples_y', 'sortIdx_x', 'diffs_x', 'diffs_sorted', 'blIdx', 'blinksIdx', 'M', 'Good_Values', 'tmpIdx');
@@ -250,6 +254,20 @@ if nargin>1 && SACdata
     end
 end
 
+
+tTrial = table();
+tTrial.subject = repmat(SbjNumber, length(trials_MSextract), 1);
+tTrial.trial = [1:80]';
+tTrial.condition = experimentmat.Exp_block_name';
+
+for itrial = 1:length(trials_MSextract)
+    tTrial.tnumMS(itrial) = length(trials_MSextract(itrial).left.Microsaccades.Start);
+end
+
+tTrial.Properties.VariableNames = {'subject', 'trial', 'condition', 'numMS'};
+
+
+
 % %% Mean MS measures
 % %Number of MS & Amplitude
 % nMS_pTrial = NaN(1, ntrials_tot);
@@ -265,11 +283,11 @@ end
 % 
 % %Number of Saccades
 % nS_pTrial = NaN(1, ntrials_tot);
-% % meanAmpS_pTrial = NaN(1, length(trials_work));
+% % meanAmpS_pTrial = NaN(1, length(trials_raw));
 % 
 % for itrial = 1:ntrials_tot
-%     nS_pTrial(itrial) = size(trials_work(itrial).left.saccade.start, 2);
-%     %     meanAmp_pTrial(itrial) = median(trials_work(itrial).left.saccade.Amplitude);
+%     nS_pTrial(itrial) = size(trials_raw(itrial).left.saccade.start, 2);
+%     %     meanAmp_pTrial(itrial) = median(trials_raw(itrial).left.saccade.Amplitude);
 % end
 % 
 % Means = table(condition_names', zeros(4,1), zeros(4,1), zeros(4,1), zeros(4,1),  zeros(4,1), 'VariableNames', {'Condition', 'MeanMS', 'MeanAmp', 'MeanDeltaX', 'MeanDeltaY', 'MeanSaccades'});
