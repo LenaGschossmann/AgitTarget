@@ -10,13 +10,15 @@ try
         data = tmp.data;
         subjects = str2num(unique(data.subject));
     else
-        subjects = [7];
-        data = [];  % Write in here all saccades of all subjects
+        subjects = [2 3 4 5 6 7 8]; % 
+        MS_data = []; % Write in here all microsaccades of all subjects
+        SAC_data = [];
         for isub = 1:length(subjects)
             tic
             fprintf('loading %i from %i ...',isub,length(subjects))
-            tmpTable = subjectAnalysis(subjects(isub),1); % the second argument returns a un-aggregated bene-table ;)
-            data = [data; tmpTable];
+            [MStmpTable SACtmpTable] = subjectAnalysis(subjects(isub),1, 1); % the second argument returns a un-aggregated bene-table ;)
+            MS_data = [MS_data; MStmpTable];
+            SAC_data = [SAC_data; SACtmpTable];
             fprintf(' took %.2f seconds \n',toc)
         end
     end

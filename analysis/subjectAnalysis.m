@@ -2,7 +2,7 @@
 function [MS_data SAC_data] = subjectAnalysis(SbjNumber,MSdata, SACdata)
 init_agittarget
 
-% SbjNumber = '3';
+% SbjNumber = '8';
 if isnumeric(SbjNumber)
     SbjNumber = num2str(SbjNumber);
 end
@@ -22,9 +22,11 @@ ntrials_tot = experimentmat.ntrials_tot;
 %% Create working trials structure
 
 trials_raw = edfstruct;
+trEye = repmat('l', ntrials_tot, 1);
 for itrial = 1:ntrials_tot
     if  ~isstruct(trials_raw(itrial).left)
         trials_raw(itrial).left = trials_raw(itrial).right;
+        trEye(itrial) = 'r';
     end
 end
 
@@ -42,9 +44,15 @@ for itrial = 1:ntrials_tot
 end
 
 
-%% Extract Microsaccades
+%%...as not all are sampled at same frequency
+if SbjNumber == 7
+    SampleRate = 500;
+else
+    SampleRate = 250;
+end
 
-[trials_MSextract]= edfExtractMicrosaccades(trials_raw);
+%% Extract Microsaccades
+[trials_MSextract]= edfExtractMicrosaccades(trials_raw, SampleRate);
 % MS parameters
 %     --> Amplitude: in px
 %     --> Phi: Amplitude in vis deg
@@ -228,20 +236,22 @@ clear('samples_x', 'samples_y', 'sortIdx_x', 'diffs_x', 'diffs_sorted', 'blIdx',
 
 condition_names = {'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'};
 
+%Microsaccades detected by E&K
 if nargin>1 && MSdata
-    % benes kram
     MS_data = table();
     for itrial = 1:length(trials_MSextract)
         ms = trials_MSextract(itrial).left.Microsaccades; % all 
         tMS = struct2table(structfun(@(x)double(x)',ms,'UniformOutput',0)); %transform in double precision values
         tMS.trial = repmat(itrial,size(tMS,1),1);
         tMS.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(tMS,1),1);
+        tMS.trackedEye = repmat(trEye(itrial), size(tMS,1),1);
         tMS.subject = repmat(SbjNumber,size(tMS,1),1);
         MS_data = [MS_data;tMS];
     end
 %     Means  = MS_data; % just to keep your function working...
 end
 
+%Saccades detected by Eyelink
 if nargin>1 && SACdata
     SAC_data = table();
     for itrial = 1:length(trials_MSextract)
@@ -249,6 +259,7 @@ if nargin>1 && SACdata
         tSAC = struct2table(structfun(@(x)double(x)',sac,'UniformOutput',0)); %transform in double precision values
         tSAC.trial = repmat(itrial,size(tSAC,1),1);
         tSAC.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(tSAC,1),1);
+        tSAC.trackedEye = repmat(trEye(itrial), size(tSAC,1),1);
         tSAC.subject = repmat(SbjNumber,size(tSAC,1),1);
         SAC_data = [SAC_data;tSAC];
     end
@@ -264,6 +275,7 @@ for itrial = 1:length(trials_MSextract)
     tTrial.tnumMS(itrial) = length(trials_MSextract(itrial).left.Microsaccades.Start);
 end
 
+t.trial.trackedEye = trEye;
 tTrial.Properties.VariableNames = {'subject', 'trial', 'condition', 'numMS'};
 
 

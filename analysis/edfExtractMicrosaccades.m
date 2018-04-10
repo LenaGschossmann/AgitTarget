@@ -1,5 +1,5 @@
 
-function [Trials]= edfExtractMicrosaccades(Trials, VelocityBraketMS, VelocityThreshold, MinimalDurationMS, MinimalSeparationMS)
+function [Trials]= edfExtractMicrosaccades(Trials, SampleRate, VelocityBraketMS, VelocityThreshold, MinimalDurationMS, MinimalSeparationMS)
 %%  edfImport library v1.0 
 %  Alexander Pastukhov 
 %  kobi.nat.uni-magdeburg.de/edfImport
@@ -52,7 +52,7 @@ if (~exist('MinimalSeparationMS', 'var') || isempty(MinimalSeparationMS))
   MinimalSeparationMS= 12;
 end;
 
-cam_sample_rate = 250;
+cam_sample_rate = SampleRate; % 500 for Sbj7
 
 sampled_eyes = 1;
 
