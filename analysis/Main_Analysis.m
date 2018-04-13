@@ -5,23 +5,28 @@ init_agittarget
 
 try
 %     newestfile = './cache/data_2017_11_04.mat'; 
-    if exist(newestfile,'file')
-        tmp = load(newestfile);
-        data = tmp.data;
-        subjects = str2num(unique(data.subject));
-    else
+%     if exist(newestfile,'file')
+%         tmp = load(newestfile);
+%         data = tmp.data;
+%         subjects = str2num(unique(data.subject));
+%     else
         subjects = [2 3 4 5 6 7 8]; % 
         MS_data = []; % Write in here all microsaccades of all subjects
         SAC_data = [];
+        OV_conditions = [];
+        OV_trials = [];
         for isub = 1:length(subjects)
             tic
             fprintf('loading %i from %i ...',isub,length(subjects))
-            [MStmpTable SACtmpTable] = subjectAnalysis(subjects(isub),1, 1); % the second argument returns a un-aggregated bene-table ;)
+            [expmat MStmpTable SACtmpTable OV_trials_tmp OV_cond_tmp] = subjectAnalysis(subjects(isub),1, 1, 1, 1); % the second argument returns a un-aggregated bene-table ;)
             MS_data = [MS_data; MStmpTable];
             SAC_data = [SAC_data; SACtmpTable];
+            OV_conditions = [OV_conditions; OV_cond_tmp];
+            OV_trials = [OV_trials; OV_trials_tmp];
             fprintf(' took %.2f seconds \n',toc)
-        end
-    end
+        end    
+        clear('MStmpTable', 'SACtmpTable', 'OV_trials_tmp', 'OV_cond_tmp');
+%     end
     
     
 %     mainTable = zeros(4, 5, length(subjects));

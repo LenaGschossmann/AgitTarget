@@ -1,8 +1,10 @@
 
-function [MS_data SAC_data] = subjectAnalysis(SbjNumber,MSdata, SACdata)
+function [experimentmat MS_data SAC_data trials_OV cond_OV] = subjectAnalysis(SbjNumber,MSdata, SACdata, overview, cleaned)
 init_agittarget
 
-% SbjNumber = '8';
+% SbjNumber = '5'; 
+% cleaned = 1; %Cleaned = Data without trials with samples too far from Fixpoint
+    
 if isnumeric(SbjNumber)
     SbjNumber = num2str(SbjNumber);
 end
@@ -61,6 +63,13 @@ end
 
 
 %% Disregard all MS during blinks if blinks were not cutMS out before
+
+valid_trials = ones(ntrials_tot, 1);
+norm_numberMS = zeros(ntrials_tot,1);
+MS_StartX = [];
+MS_StartY = [];
+MS_EndX = [];
+MS_EndY = [];
 
 for itrial = 1:ntrials_tot
     
@@ -140,7 +149,7 @@ for itrial = 1:ntrials_tot
         blinksEnd = blinksEnd(2:end);
         
        %set first blinkIndex to 1 if 0
-       if(blinksIdx(1) == 0)
+       if(blinksIdx(1) == 0)    
            blinksIdx(1) = 1;
        end    
 
@@ -186,7 +195,7 @@ for itrial = 1:ntrials_tot
         end
     end
         
-        %% Exclude impossible values (??)
+        %% Exclude impossible values --> cut out MS that contain samples that are marked with 0 in Good_Values
         badVals = trials_MSextract(itrial).left.samples.x > experimentmat.screenRes.width | trials_MSextract(itrial).left.samples.x < 0;
         badVals = badVals + (trials_MSextract(itrial).left.samples.y > experimentmat.screenRes.height | trials_MSextract(itrial).left.samples.y < 0);
         trials_MSextract(itrial).left.samples.Good_Values(badVals > 0) = 0; %mark impossible values in Good_Values
@@ -227,71 +236,177 @@ for itrial = 1:ntrials_tot
         if ((1/experimentmat.px_per_deg).* trials_MSextract(itrial).left.Microsaccades.Amplitude > 2)
             warning(sprintf('There are Microsaccades in subject %d, trial %d that exceed 2 degrees in their amplitude', SbjNumber, itrial))
         end
+        
+        % Calculate mean distance of samples per trial from fixation point
+        x_dev = samples_x(trials_MSextract(itrial).left.samples.Good_Values == 1)-(experimentmat.screenRes.width/2);
+        y_dev = samples_y(trials_MSextract(itrial).left.samples.Good_Values == 1)-(experimentmat.screenRes.height/2);
+        mean_amp_xy = mean(sqrt(x_dev.^2 + y_dev.^2));
+        if (mean_amp_xy > 5 * experimentmat.px_per_deg) %threshold of x times visual degreen -> when samples lie outside, trial dismissed
+            valid_trials(itrial) = 0;
+        end
+        
+        %Dismiss trials with too many blinks (when usable values are less
+        %than 25%
+        if sum(trials_MSextract(itrial).left.samples.Good_Values) < 0.25*length(trials_MSextract(itrial).left.samples.Good_Values)
+            valid_trials(itrial) = 0;
+        end
+        
+        %Normalize Number of MS by valid sample points
+        norm_numberMS(itrial) = length(trials_MSextract(itrial).left.Microsaccades.Start) / sum(trials_MSextract(itrial).left.samples.Good_Values);
+ 
 end
 
 clear('samples_x', 'samples_y', 'sortIdx_x', 'diffs_x', 'diffs_sorted', 'blIdx', 'blinksIdx', 'M', 'Good_Values', 'tmpIdx');
 
 
-%% Table with all MS per subject listed
+
+%% Mean MS measures
+%Number of MS & Amplitude
+nMS_pTrial = NaN(1, ntrials_tot);
+meanAmp_pTrial = NaN(1, ntrials_tot);
+meanXY_pTrial = NaN(2, ntrials_tot);
+
+for itrial = 1:length(trials_MSextract)
+    nMS_pTrial(itrial) = size(trials_MSextract(itrial).left.Microsaccades.Start, 2);
+    meanAmp_pTrial(itrial) = median(trials_MSextract(itrial).left.Microsaccades.Amplitude);
+end
+
+
+%% Tables
 
 condition_names = {'GaussCirclesMasked_Dot', 'CrossedBulleye', 'Bulleye', 'StatCircles'};
 
-%Microsaccades detected by E&K
-if nargin>1 && MSdata
-    MS_data = table();
-    for itrial = 1:length(trials_MSextract)
-        ms = trials_MSextract(itrial).left.Microsaccades; % all 
-        tMS = struct2table(structfun(@(x)double(x)',ms,'UniformOutput',0)); %transform in double precision values
-        tMS.trial = repmat(itrial,size(tMS,1),1);
-        tMS.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(tMS,1),1);
-        tMS.trackedEye = repmat(trEye(itrial), size(tMS,1),1);
-        tMS.subject = repmat(SbjNumber,size(tMS,1),1);
-        MS_data = [MS_data;tMS];
+    %% Table with overview over trials and conditions
+    if nargin>1 && overview
+        trials_OV = table();
+        trials_OV.trial =  [1:ntrials_tot]';
+        trials_OV.condition = condition_names(experimentmat.Exp_block_ID)';
+        trials_OV.trackedEye = trEye;
+        trials_OV.subject = repmat(SbjNumber,ntrials_tot,1);
+        trials_OV.valid_trial = valid_trials;
+        trials_OV.numberMS = nMS_pTrial';
+        trials_OV.norm_numberMS = norm_numberMS;
+        trials_OV.meanAmpMS = meanAmp_pTrial';
+
+        cond_OV = table();
+        cond_OV.condition = condition_names';
+        cond_OV.subject = repmat(SbjNumber, length(condition_names), 1);
+
+        for icond = 1:length(condition_names)
+            % number of valid trials per condition
+            cond_OV.valid_trials(icond) = sum(valid_trials(strcmp(condition_names{icond}, trials_OV.condition) == 1));
+            tmpT = strcmp(condition_names{icond}, trials_OV.condition) == 1 & trials_OV.valid_trial == 1; 
+            % mean number of MS per condition
+            cond_OV.mean_numberMS(icond) = mean(trials_OV.numberMS(tmpT));
+            %mean number of normalized number of MS per condition
+            cond_OV.mean_norm_numberMS(icond) = mean(trials_OV.norm_numberMS(tmpT));
+            %mean MS amplitude per condition
+            cond_OV.mean_AmpMS(icond) = mean(trials_OV.meanAmpMS(tmpT));
+        end
+        clear('tmpT');
     end
-%     Means  = MS_data; % just to keep your function working...
-end
+    
+    
+    %% Table with all MS per subject listed - cleaned
+    
+    if cleaned
+        cleanTrials = (find(valid_trials == 1));
+        %Microsaccades detected by E&K
+        if nargin>1 && MSdata
+            MS_data = table();
+            for itrial = cleanTrials'
+                ms = trials_MSextract(itrial).left.Microsaccades; % all 
+                tMS = struct2table(structfun(@(x)double(x)',ms,'UniformOutput',0)); %transform in double precision values
+                tMS.subject = repmat(SbjNumber,size(tMS,1),1);
+                tMS.trial = repmat(itrial,size(tMS,1),1);
+                tMS.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(tMS,1),1);
+                tMS.trackedEye = repmat(trEye(itrial), size(tMS,1),1);
+                tMS.StartX = trials_MSextract(itrial).left.samples.x(trials_MSextract(itrial).left.Microsaccades.Start)';
+                tMS.StartY = trials_MSextract(itrial).left.samples.y(trials_MSextract(itrial).left.Microsaccades.Start)';
+                tMS.EndX = trials_MSextract(itrial).left.samples.x(trials_MSextract(itrial).left.Microsaccades.End)';
+                tMS.EndY = trials_MSextract(itrial).left.samples.y(trials_MSextract(itrial).left.Microsaccades.End)';
+                MS_data = [MS_data;tMS];
+            end
+            MS_data.Start = [];
+            MS_data.End = [];
+        end
 
-%Saccades detected by Eyelink
-if nargin>1 && SACdata
-    SAC_data = table();
-    for itrial = 1:length(trials_MSextract)
-        sac = trials_MSextract(itrial).left.saccade; % all 
-        tSAC = struct2table(structfun(@(x)double(x)',sac,'UniformOutput',0)); %transform in double precision values
-        tSAC.trial = repmat(itrial,size(tSAC,1),1);
-        tSAC.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(tSAC,1),1);
-        tSAC.trackedEye = repmat(trEye(itrial), size(tSAC,1),1);
-        tSAC.subject = repmat(SbjNumber,size(tSAC,1),1);
-        SAC_data = [SAC_data;tSAC];
-    end
-end
+        %Saccades detected by Eyelink
+        if nargin>1 && SACdata
+            SAC_data = table();
+            for itrial = cleanTrials'
+                sac = trials_MSextract(itrial).left.saccade; % all 
+                tSAC = struct2table(structfun(@(x)double(x)',sac,'UniformOutput',0)); %transform in double precision values
+                tSAC.subject = repmat(SbjNumber,size(tSAC,1),1);
+                tSAC.trial = repmat(itrial,size(tSAC,1),1);
+                tSAC.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(tSAC,1),1);
+                tSAC.trackedEye = repmat(trEye(itrial), size(tSAC,1),1);
+                tSAC.StartX = trials_MSextract(itrial).left.saccade.Sx';
+                tSAC.StartY = trials_MSextract(itrial).left.saccade.Sy';
+                tSAC.EndX = trials_MSextract(itrial).left.saccade.Ex';
+                tSAC.EndY = trials_MSextract(itrial).left.saccade.Ex';
+                SAC_data = [SAC_data;tSAC];
+            end  
+        end
 
-
-tTrial = table();
-tTrial.subject = repmat(SbjNumber, length(trials_MSextract), 1);
-tTrial.trial = [1:80]';
-tTrial.condition = experimentmat.Exp_block_name';
-
-for itrial = 1:length(trials_MSextract)
-    tTrial.tnumMS(itrial) = length(trials_MSextract(itrial).left.Microsaccades.Start);
-end
-
-t.trial.trackedEye = trEye;
-tTrial.Properties.VariableNames = {'subject', 'trial', 'condition', 'numMS'};
-
-
-
-% %% Mean MS measures
-% %Number of MS & Amplitude
-% nMS_pTrial = NaN(1, ntrials_tot);
-% meanAmp_pTrial = NaN(1, ntrials_tot);
-% meanXY_pTrial = NaN(2, ntrials_tot);
+%         tTrial = table();
+%         tTrial.subject = repmat(SbjNumber, length(cleanTrials), 1);
+%         tTrial.trial = cleanTrials;
+%         tTrial.condition = experimentmat.Exp_block_name';
 % 
-% for itrial = 1:length(trials_MSextract)
-%     nMS_pTrial(itrial) = size(trials_MSextract(itrial).left.Microsaccades.Start, 2);
-%     meanAmp_pTrial(itrial) = median(trials_MSextract(itrial).left.Microsaccades.Amplitude);
-%     meanXY_pTrial(1, itrial) = median(trials_MSextract(itrial).left.Microsaccades.DeltaX);
-%     meanXY_pTrial(2, itrial) = median(trials_MSextract(itrial).left.Microsaccades.DeltaY);
-% end
+%         for itrial = cleanTrials'
+%             tTrial.tnumMS(itrial) = length(trials_MSextract(itrial).left.Microsaccades.Start);
+%         end
+%         t.trial.trackedEye = trEye;
+%         tTrial.Properties.VariableNames = {'subject', 'trial', 'condition', 'numMS'};
+    
+    
+     %% Table with all MS per subject listed - NOT cleaned
+     else
+        %Microsaccades detected by E&K
+        if nargin>1 && MSdata
+            MS_data = table();
+            for itrial = 1:length(trials_MSextract)
+                ms = trials_MSextract(itrial).left.Microsaccades; % all 
+                tMS = struct2table(structfun(@(x)double(x)',ms,'UniformOutput',0)); %transform in double precision values
+                tMS.trial = repmat(itrial,size(tMS,1),1);
+                tMS.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(tMS,1),1);
+                tMS.trackedEye = repmat(trEye(itrial), size(tMS,1),1);
+                tMS.subject = repmat(SbjNumber,size(tMS,1),1);
+                MS_data = [MS_data;tMS];
+            end
+        %     Means  = MS_data; % just to keep your function working...
+        end
+
+        %Saccades detected by Eyelink
+        if nargin>1 && SACdata
+            SAC_data = table();
+            for itrial = 1:length(trials_MSextract)
+                sac = trials_MSextract(itrial).left.saccade; % all 
+                tSAC = struct2table(structfun(@(x)double(x)',sac,'UniformOutput',0)); %transform in double precision values
+                tSAC.trial = repmat(itrial,size(tSAC,1),1);
+                tSAC.condition = repmat(condition_names(experimentmat.Exp_block_ID(itrial)),size(tSAC,1),1);
+                tSAC.trackedEye = repmat(trEye(itrial), size(tSAC,1),1);
+                tSAC.subject = repmat(SbjNumber,size(tSAC,1),1);
+                SAC_data = [SAC_data;tSAC];
+            end
+        end
+
+
+        tTrial = table();
+        tTrial.subject = repmat(SbjNumber, length(trials_MSextract), 1);
+        tTrial.trial = [1:80]';
+        tTrial.condition = experimentmat.Exp_block_name';
+
+        for itrial = 1:length(trials_MSextract)
+            tTrial.tnumMS(itrial) = length(trials_MSextract(itrial).left.Microsaccades.Start);
+        end
+
+        t.trial.trackedEye = trEye;
+        tTrial.Properties.VariableNames = {'subject', 'trial', 'condition', 'numMS'};
+     end
+
+       
 % 
 % %Number of Saccades
 % nS_pTrial = NaN(1, ntrials_tot);
@@ -319,4 +434,15 @@ if nargin>1 && MSdata == 0
 end
 
 end
+
+
+
+
+
+
+
+
+
+
+
 
